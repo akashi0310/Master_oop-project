@@ -42,6 +42,12 @@ def __getattr__(name):
     elif name == 'DefaultCustomerValidator':
         from .customer_validator import DefaultCustomerValidator
         return DefaultCustomerValidator
+    elif name == 'InventoryManager':
+        from .inventory_manager import InventoryManager
+        return InventoryManager
+    elif name == 'DefaultProductValidator':
+        from .product_validator import DefaultProductValidator
+        return DefaultProductValidator
     else:
         raise AttributeError(f"module 'services' has no attribute '{name}'")
 
@@ -59,5 +65,7 @@ __all__ = [
     'LoyaltyPointsManager',
     'MembershipManager',
     'OrderHistoryManager',
-    'DefaultCustomerValidator'
+    'DefaultCustomerValidator',
+    'InventoryManager',
+    'DefaultProductValidator'
 ]

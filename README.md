@@ -251,7 +251,7 @@ cd Project
 pip install -r requirements.txt
 
 # Run the demo application
-python main_refactored.py
+python main.py
 ```
 
 ### Running Tests
@@ -260,7 +260,7 @@ python main_refactored.py
 python tests/run_tests.py
 
 # Run specific test module
-python tests/run_tests.py tests.test_domain.test_customer_refactored
+python tests/run_tests.py tests.test_domain.test_customer
 ```
 
 ## Extending the System

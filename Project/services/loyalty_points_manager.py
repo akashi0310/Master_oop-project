@@ -21,6 +21,13 @@ class LoyaltyPointsManager:
         """Get current loyalty points"""
         return self._points
     
+    @points.setter
+    def points(self, value: int) -> None:
+        """Set loyalty points"""
+        if value < 0:
+            raise ValueError("Loyalty points cannot be negative")
+        self._points = value
+    
     def add_points(self, points: int, calculator: LoyaltyPointsCalculator) -> None:
         """Add loyalty points with multiplier based on membership tier"""
         if points <= 0:

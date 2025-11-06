@@ -1,135 +1,321 @@
-# Demo usage of the legacy system
-from models import Product, Customer, OrderItem, Order, Supplier, Promotion
-from inventory import add_product, get_product, restock_product, update_product_price, get_low_stock_products
-from order_processing import (
-    add_customer, get_customer, add_supplier, get_supplier, add_promotion, 
-    process_order, get_order, update_order_status, apply_additional_discount, 
-    cancel_order, get_customer_orders
-)
-from shipping import create_shipment, get_shipment, update_shipment_status
-from customer_management import (
-    get_customer_lifetime_value, upgrade_customer_membership, 
-    get_all_customers, get_customers_by_tier, update_customer_info,
-    add_loyalty_points, redeem_loyalty_points
-)
-from reporting import (
-    generate_sales_report, get_sales_by_date_range, get_top_selling_products,
-    get_revenue_by_category, get_customer_segment_report, get_order_status_summary
-)
-from marketing import (
-    send_marketing_email, send_promotional_email, send_new_product_announcement,
-    send_back_in_stock_notification, get_customer_emails_by_segment,
-    create_seasonal_promotion
-)
-import datetime
+#!/usr/bin/env python3
+"""
+Demo usage of the refactored OOP order system.
+This demonstrates the new architecture with proper separation of concerns,
+dependency injection, and repository pattern.
+"""
 
-print("=" * 60)
-print("E-Commerce Legacy System Demo")
-print("=" * 60)
+from datetime import datetime, timedelta
+from typing import Dict, Any
 
-# Setup suppliers
-print("\n1. Setting up suppliers...")
-add_supplier(1, "TechDistributor Inc", "orders@techdist.com", 4.5)
-add_supplier(2, "ElectroSupply Co", "sales@electro.com", 4.2)
-add_supplier(3, "GadgetWholesale", "info@gadgetwholesale.com", 4.8)
+from application.order_processor import OrderProcessor
+from domain.models import OrderItem
+from domain.value_objects import Money
 
-# Setup products
-print("\n2. Adding products to inventory...")
-add_product(1, "Laptop Pro 15", 999.99, 15, "Electronics", 2.5, 1)
-add_product(2, "Wireless Mouse", 29.99, 50, "Electronics", 0.2, 2)
-add_product(3, "Mechanical Keyboard", 79.99, 30, "Electronics", 1.0, 2)
-add_product(4, "4K Monitor", 299.99, 20, "Electronics", 5.0, 1)
-add_product(5, "USB-C Hub", 49.99, 40, "Electronics", 0.3, 3)
-add_product(6, "Laptop Bag", 39.99, 25, "Accessories", 0.8, 3)
-add_product(7, "Desk Lamp", 34.99, 35, "Accessories", 1.2, 3)
-add_product(8, "Ergonomic Chair", 299.99, 10, "Furniture", 15.0, 1)
-add_product(9, "Standing Desk", 499.99, 8, "Furniture", 25.0, 1)
-add_product(10, "Webcam HD", 79.99, 45, "Electronics", 0.4, 2)
 
-# Setup customers
-print("\n3. Creating customer accounts...")
-add_customer(101, "Alice Smith", "alice@email.com", "gold", "555-0101", "123 Main St, CA 94102")
-add_customer(102, "Bob Jones", "bob@email.com", "silver", "555-0102", "456 Oak Ave, NY 10001")
-add_customer(103, "Charlie Brown", "charlie@email.com", "standard", "555-0103", "789 Pine Rd, TX 75001")
-add_customer(104, "Diana Prince", "diana@email.com", "bronze", "555-0104", "321 Elm St, CA 90210")
-add_customer(105, "Eve Wilson", "eve@email.com", "standard", "555-0105", "654 Maple Dr, NY 10002")
+def main():
+    """Main function to demonstrate the refactored order system"""
+    print("=" * 60)
+    print("E-Commerce Refactored System Demo")
+    print("=" * 60)
+    
+    # Initialize the order processor with all dependencies
+    processor = OrderProcessor()
+    
+    # Setup suppliers
+    print("\n1. Setting up suppliers...")
+    processor.add_supplier(
+        supplier_id=1,
+        name="TechDistributor Inc",
+        email="orders@techdist.com",
+        reliability_score=4.5
+    )
+    processor.add_supplier(
+        supplier_id=2,
+        name="ElectroSupply Co",
+        email="sales@electro.com",
+        reliability_score=4.2
+    )
+    processor.add_supplier(
+        supplier_id=3,
+        name="GadgetWholesale",
+        email="info@gadgetwholesale.com",
+        reliability_score=4.8
+    )
+    
+    # Setup products
+    print("\n2. Adding products to inventory...")
+    processor.add_product(
+        product_id=1,
+        name="Laptop Pro 15",
+        price=999.99,
+        quantity_available=15,
+        category="Electronics",
+        weight=2.5,
+        supplier_id=1
+    )
+    processor.add_product(
+        product_id=2,
+        name="Wireless Mouse",
+        price=29.99,
+        quantity_available=50,
+        category="Electronics",
+        weight=0.2,
+        supplier_id=2
+    )
+    processor.add_product(
+        product_id=3,
+        name="Mechanical Keyboard",
+        price=79.99,
+        quantity_available=30,
+        category="Electronics",
+        weight=1.0,
+        supplier_id=2
+    )
+    processor.add_product(
+        product_id=4,
+        name="4K Monitor",
+        price=299.99,
+        quantity_available=20,
+        category="Electronics",
+        weight=5.0,
+        supplier_id=1
+    )
+    processor.add_product(
+        product_id=5,
+        name="USB-C Hub",
+        price=49.99,
+        quantity_available=40,
+        category="Electronics",
+        weight=0.3,
+        supplier_id=3
+    )
+    processor.add_product(
+        product_id=6,
+        name="Laptop Bag",
+        price=39.99,
+        quantity_available=25,
+        category="Accessories",
+        weight=0.8,
+        supplier_id=3
+    )
+    processor.add_product(
+        product_id=7,
+        name="Desk Lamp",
+        price=34.99,
+        quantity_available=35,
+        category="Accessories",
+        weight=1.2,
+        supplier_id=3
+    )
+    processor.add_product(
+        product_id=8,
+        name="Ergonomic Chair",
+        price=299.99,
+        quantity_available=10,
+        category="Furniture",
+        weight=15.0,
+        supplier_id=1
+    )
+    processor.add_product(
+        product_id=9,
+        name="Standing Desk",
+        price=499.99,
+        quantity_available=8,
+        category="Furniture",
+        weight=25.0,
+        supplier_id=1
+    )
+    processor.add_product(
+        product_id=10,
+        name="Webcam HD",
+        price=79.99,
+        quantity_available=45,
+        category="Electronics",
+        weight=0.4,
+        supplier_id=2
+    )
+    
+    # Setup customers
+    print("\n3. Creating customer accounts...")
+    processor.add_customer(
+        customer_id=101,
+        name="Alice Smith",
+        email="alice@email.com",
+        membership_tier="gold",
+        phone="555-0101",
+        address="123 Main St, San Francisco CA 94102",
+        loyalty_points=100
+    )
+    processor.add_customer(
+        customer_id=102,
+        name="Bob Jones",
+        email="bob@email.com",
+        membership_tier="silver",
+        phone="555-0102",
+        address="456 Oak Ave, New York NY 10001",
+        loyalty_points=50
+    )
+    processor.add_customer(
+        customer_id=103,
+        name="Charlie Brown",
+        email="charlie@email.com",
+        membership_tier="standard",
+        phone="555-0103",
+        address="789 Pine Rd, Dallas TX 75001",
+        loyalty_points=0
+    )
+    processor.add_customer(
+        customer_id=104,
+        name="Diana Prince",
+        email="diana@email.com",
+        membership_tier="bronze",
+        phone="555-0104",
+        address="321 Elm St, Beverly Hills CA 90210",
+        loyalty_points=25
+    )
+    processor.add_customer(
+        customer_id=105,
+        name="Eve Wilson",
+        email="eve@email.com",
+        membership_tier="standard",
+        phone="555-0105",
+        address="654 Maple Dr, Albany NY 10002",
+        loyalty_points=0
+    )
+    
+    # Add some promotions
+    print("\n4. Setting up promotions...")
+    processor.add_promotion(
+        promo_id=1,
+        code="SAVE15",
+        discount_percent=15,
+        min_purchase=100,
+        valid_days=30,
+        category="Electronics"
+    )
+    processor.add_promotion(
+        promo_id=2,
+        code="WELCOME10",
+        discount_percent=10,
+        min_purchase=0,
+        valid_days=60,
+        category="all"
+    )
+    
+    # Create first order
+    print("\n5. Processing first order (Gold member, with promo code)...")
+    items1 = [
+        {"product_id": 1, "quantity": 1, "unit_price": 999.99},
+        {"product_id": 2, "quantity": 2, "unit_price": 29.99},
+        {"product_id": 5, "quantity": 1, "unit_price": 49.99}
+    ]
+    payment1 = {
+        "valid": True, 
+        "type": "credit_card", 
+        "card_number": "1234567890123456", 
+        "amount": 1000
+    }
+    order1 = processor.process_order(
+        customer_id=101,
+        order_items=items1,
+        payment_info=payment1,
+        promo_code="SAVE15",
+        shipping_method='express'
+    )
+    if order1:
+        print(f"+ Order {order1['order_id']} created successfully!")
+        print(f"  Total: ${order1['total']:.2f} (includes ${order1['shipping_cost']:.2f} shipping)")
+        print(f"  Status: {order1['status']}")
+    
+    # Create second order
+    print("\n6. Processing second order (Standard member, bulk purchase)...")
+    items2 = [
+        {"product_id": 3, "quantity": 5, "unit_price": 79.99},
+        {"product_id": 10, "quantity": 3, "unit_price": 79.99}
+    ]
+    payment2 = {
+        "valid": True, 
+        "type": "paypal", 
+        "email": "charlie@email.com", 
+        "amount": 700
+    }
+    order2 = processor.process_order(
+        customer_id=103,
+        order_items=items2,
+        payment_info=payment2,
+        shipping_method='standard'
+    )
+    if order2:
+        print(f"+ Order {order2['order_id']} created successfully!")
+        print(f"  Total: ${order2['total']:.2f}")
+    
+    # Create third order
+    print("\n7. Processing third order (Bronze member, furniture)...")
+    items3 = [
+        {"product_id": 8, "quantity": 1, "unit_price": 299.99},
+        {"product_id": 7, "quantity": 2, "unit_price": 34.99}
+    ]
+    payment3 = {
+        "valid": True, 
+        "type": "credit_card", 
+        "card_number": "9876543210987654", 
+        "amount": 400
+    }
+    order3 = processor.process_order(
+        customer_id=104,
+        order_items=items3,
+        payment_info=payment3,
+        shipping_method='standard'
+    )
+    if order3:
+        print(f"+ Order {order3['order_id']} created successfully!")
+    
+    # Update order status
+    print("\n8. Shipping an order...")
+    if order1:
+        updated = processor.update_order_status(order1['order_id'], 'shipped')
+        if updated:
+            print(f"+ Order {order1['order_id']} marked as shipped")
+    
+    # Check low stock
+    print("\n9. Checking inventory status...")
+    low_stock = processor.get_low_stock_products(15)
+    if low_stock:
+        print(f"! Found {len(low_stock)} products with low stock:")
+        for product in low_stock[:3]:
+            print(f"  - {product['name']}: {product['quantity']} units")
+    
+    # Generate sales report
+    print("\n10. Generating sales report...")
+    start = datetime.now() - timedelta(days=1)
+    end = datetime.now() + timedelta(days=1)
+    report = processor.generate_sales_report(start, end)
+    if report:
+        print(f"Total Sales: ${report['total_sales']:.2f}")
+        print(f"Total Orders: {report['total_orders']}")
+        print("Revenue by Category:")
+        for category, revenue in report['revenue_by_category'].items():
+            print(f"  {category}: ${revenue:.2f}")
+    
+    # Check customer orders
+    print("\n11. Customer order history...")
+    for cust_id in [101, 102, 103, 104]:
+        orders = processor.get_customer_orders(cust_id)
+        if orders:
+            print(f"Customer {cust_id} has {len(orders)} orders")
+    
+    # Upgrade customer membership
+    print("\n12. Upgrading customer memberships...")
+    for cust_id in [101, 102, 103, 104]:
+        upgraded = processor.upgrade_customer_membership(cust_id)
+        if upgraded:
+            print(f"  Customer {cust_id} membership upgraded")
+    
+    print("\n" + "=" * 60)
+    print("Demo completed!")
+    print("=" * 60)
 
-# Add some promotions
-print("\n4. Setting up promotions...")
-add_promotion(1, "SAVE15", 15, 100, datetime.datetime.now() + datetime.timedelta(days=30), "Electronics")
-add_promotion(2, "WELCOME10", 10, 0, datetime.datetime.now() + datetime.timedelta(days=60), "all")
 
-# Create first order
-print("\n5. Processing first order (Gold member, with promo code)...")
-items1 = [
-    OrderItem(1, 1, 999.99),
-    OrderItem(2, 2, 29.99),
-    OrderItem(5, 1, 49.99)
-]
-payment1 = {"valid": True, "type": "credit_card", "card_number": "1234567890123456", "amount": 1000}
-order1 = process_order(101, items1, payment1, promo_code="SAVE15", shipping_method='express')
-if order1:
-    print(f"+ Order {order1.order_id} created successfully!")
-    print(f"  Total: ${order1.total_price:.2f} (includes ${order1.shipping_cost:.2f} shipping)")
-    print(f"  Status: {order1.status}")
-
-# Create second order
-print("\n6. Processing second order (Standard member, bulk purchase)...")
-items2 = [
-    OrderItem(3, 5, 79.99),
-    OrderItem(10, 3, 79.99)
-]
-payment2 = {"valid": True, "type": "paypal", "email": "charlie@email.com", "amount": 700}
-order2 = process_order(103, items2, payment2, shipping_method='standard')
-if order2:
-    print(f"+ Order {order2.order_id} created successfully!")
-    print(f"  Total: ${order2.total_price:.2f}")
-
-# Create third order
-print("\n7. Processing third order (Bronze member, furniture)...")
-items3 = [
-    OrderItem(8, 1, 299.99),
-    OrderItem(7, 2, 34.99)
-]
-payment3 = {"valid": True, "type": "credit_card", "card_number": "9876543210987654", "amount": 400}
-order3 = process_order(104, items3, payment3, shipping_method='standard')
-if order3:
-    print(f"+ Order {order3.order_id} created successfully!")
-
-# Update order status
-print("\n8. Shipping an order...")
-updated = update_order_status(order1.order_id, 'shipped')
-if updated:
-    print(f"+ Order {order1.order_id} marked as shipped")
-    print(f"  Tracking: {updated.tracking_number}")
-
-# Check low stock
-print("\n9. Checking inventory status...")
-low_stock = get_low_stock_products(15)
-if low_stock:
-    print(f"! Found {len(low_stock)} products with low stock:")
-    for product in low_stock[:3]:
-        print(f"  - {product.name}: {product.quantity_available} units")
-
-# Generate sales report
-print("\n10. Generating sales report...")
-start = datetime.datetime.now() - datetime.timedelta(days=1)
-end = datetime.datetime.now() + datetime.timedelta(days=1)
-report = generate_sales_report(start, end)
-print(f"Total Sales: ${report['total_sales']:.2f}")
-print(f"Total Orders: {report['total_orders']}")
-print(f"Revenue by Category:")
-for category, revenue in report['revenue_by_category'].items():
-    print(f"  {category}: ${revenue:.2f}")
-
-# Check customer lifetime values
-print("\n11. Customer lifetime values...")
-for cust_id in [101, 102, 103, 104]:
-    customer = get_customer(cust_id)
-    if customer:
-        ltv = get_customer_lifetime_value(cust_id)
-        print(f"{customer.name} ({customer.membership_tier}): ${ltv:.2f}")
-
-print("\n" + "=" * 60)
-print("Demo completed!")
-print("=" * 60)
+if __name__ == "__main__":
+    main()

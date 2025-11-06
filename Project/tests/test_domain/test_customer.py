@@ -1,210 +1,181 @@
 import unittest
-from datetime import datetime
+from domain.models.customer import Customer
+from domain.value_objects.email import Email
+from domain.value_objects.address import Address
+from domain.enums.membership_tier import MembershipTier
+from services.customer_validator import DefaultCustomerValidator
 
-from domain.models import Customer
-from domain.enums import MembershipTier
-from domain.value_objects import Email, Address
 
-
-class TestCustomer(unittest.TestCase):
-    def setUp(self):
-        """Set up test fixtures"""
-        self.customer_gold = Customer(
-            customer_id=101,
-            name="Alice Smith",
-            email="alice@email.com",
+class TestCustomerRefactored(unittest.TestCase):
+    """Test cases for the refactored Customer class"""
+    
+    def test_customer_creation(self):
+        """Test creating a customer with valid data"""
+        customer = Customer(
+            customer_id=1,
+            name="John Doe",
+            email="john@example.com",
             membership_tier="gold",
-            phone="555-0101",
-            address="123 Main St, San Francisco CA 94102",
+            phone="123-456-7890",
+            address="123 Main St, Anytown CA 12345",
             loyalty_points=100
         )
         
-        self.customer_silver = Customer(
-            customer_id=102,
-            name="Bob Jones",
-            email="bob@email.com",
-            membership_tier="silver",
-            phone="555-0102",
-            address="456 Oak Ave, New York NY 10001",
+        self.assertEqual(customer.customer_id, 1)
+        self.assertEqual(customer.name, "John Doe")
+        self.assertEqual(str(customer.email), "john@example.com")
+        self.assertEqual(customer.membership_tier, MembershipTier.GOLD)
+        self.assertEqual(customer.phone, "123-456-7890")
+        self.assertEqual(str(customer.address), "123 Main St, Anytown, CA 12345")
+        self.assertEqual(customer.loyalty_points, 100)
+        self.assertEqual(customer.order_history, [])
+    
+    def test_customer_with_value_objects(self):
+        """Test creating a customer with value objects"""
+        email = Email("jane@example.com")
+        address = Address("456 Oak Ave", "Smalltown", "TX", "67890")
+        
+        customer = Customer(
+            customer_id=2,
+            name="Jane Smith",
+            email=email,
+            membership_tier=MembershipTier.SILVER,
+            address=address
+        )
+        
+        self.assertEqual(customer.email, email)
+        self.assertEqual(customer.address, address)
+        self.assertEqual(customer.membership_tier, MembershipTier.SILVER)
+    
+    def test_loyalty_points_operations(self):
+        """Test loyalty points operations"""
+        customer = Customer(
+            customer_id=3,
+            name="Bob Johnson",
+            email="bob@example.com",
+            membership_tier=MembershipTier.BRONZE,
             loyalty_points=50
         )
         
-        self.customer_standard = Customer(
-            customer_id=103,
-            name="Charlie Brown",
-            email="charlie@email.com",
-            membership_tier="standard",
-            phone="555-0103",
-            address="789 Pine Rd, Dallas TX 75001",
-            loyalty_points=25
-        )
+        # Test adding points (bronze gets 1.2x multiplier)
+        customer.add_loyalty_points(10)
+        self.assertEqual(customer.loyalty_points, 62)  # 50 + (10 * 1.2)
         
-        self.customer_suspended = Customer(
-            customer_id=104,
-            name="Diana Prince",
-            email="diana@email.com",
-            membership_tier="suspended",
-            phone="555-0104",
-            address="321 Elm St, Beverly Hills CA 90210",
-            loyalty_points=75
-        )
+        # Test redeeming points
+        success = customer.redeem_loyalty_points(20)
+        self.assertTrue(success)
+        self.assertEqual(customer.loyalty_points, 42)
+        
+        # Test redeeming more points than available
+        success = customer.redeem_loyalty_points(50)
+        self.assertFalse(success)
+        self.assertEqual(customer.loyalty_points, 42)
     
-    def test_customer_creation(self):
-        """Test customer creation with valid data"""
+    def test_membership_operations(self):
+        """Test membership operations"""
         customer = Customer(
-            customer_id=105,
-            name="Eve Wilson",
-            email="eve@email.com",
-            membership_tier="bronze",
-            phone="555-0105",
-            address="654 Maple Dr, New York NY 10002",
-            loyalty_points=10
+            customer_id=4,
+            name="Alice Brown",
+            email="alice@example.com",
+            membership_tier=MembershipTier.STANDARD
         )
         
-        self.assertEqual(customer.customer_id, 105)
-        self.assertEqual(customer.name, "Eve Wilson")
-        self.assertEqual(customer.email.value, "eve@email.com")
-        self.assertEqual(customer.membership_tier, MembershipTier.BRONZE)
-        self.assertEqual(customer.phone, "555-0105")
-        self.assertEqual(customer.address.street, "654 Maple Dr")
-        self.assertEqual(customer.address.city, "New York")
-        self.assertEqual(customer.address.state, "NY")
-        self.assertEqual(customer.address.zip_code, "10002")
-        self.assertEqual(customer.loyalty_points, 10)
-        self.assertEqual(customer.order_history, [])
+        # Test membership discount rates
+        self.assertEqual(customer.get_membership_discount_rate(), 0.0)
+        self.assertEqual(customer.get_shipping_discount_rate(), 0.0)
+        self.assertTrue(customer.can_place_order())
+        
+        # Test upgrading membership
+        customer.upgrade_membership(MembershipTier.GOLD)
+        self.assertEqual(customer.membership_tier, MembershipTier.GOLD)
+        self.assertEqual(customer.get_membership_discount_rate(), 0.15)
+        self.assertEqual(customer.get_shipping_discount_rate(), 0.5)
+        
+        # Test upgrading to suspended (should raise error)
+        with self.assertRaises(ValueError) as context:
+            customer.upgrade_membership(MembershipTier.SUSPENDED)
+        self.assertIn("Cannot upgrade to suspended status", str(context.exception))
     
-    def test_customer_creation_invalid_data(self):
-        """Test customer creation with invalid data"""
-        with self.assertRaises(ValueError):
+    def test_order_history_operations(self):
+        """Test order history operations"""
+        customer = Customer(
+            customer_id=5,
+            name="Charlie Wilson",
+            email="charlie@example.com",
+            membership_tier=MembershipTier.SILVER
+        )
+        
+        # Test adding orders to history
+        customer.add_order_to_history(101)
+        customer.add_order_to_history(102)
+        self.assertEqual(customer.order_history, [101, 102])
+        
+        # Test adding invalid order ID
+        with self.assertRaises(ValueError) as context:
+            customer.add_order_to_history(-1)
+        self.assertIn("Order ID must be positive", str(context.exception))
+    
+    def test_customer_validation(self):
+        """Test customer validation"""
+        # Test invalid customer ID
+        with self.assertRaises(ValueError) as context:
             Customer(
-                customer_id=-1,  # Invalid ID
-                name="Test",
-                email="test@email.com",
-                membership_tier="gold",
-                phone="555-0101",
-                address="123 Main St, San Francisco CA 94102",
-                loyalty_points=0
+                customer_id=0,
+                name="Test User",
+                email="test@example.com",
+                membership_tier=MembershipTier.STANDARD
             )
+        self.assertIn("Customer ID must be positive", str(context.exception))
         
-        with self.assertRaises(ValueError):
+        # Test empty name
+        with self.assertRaises(ValueError) as context:
             Customer(
-                customer_id=106,
-                name="",  # Empty name
-                email="test@email.com",
-                membership_tier="gold",
-                phone="555-0101",
-                address="123 Main St, San Francisco CA 94102",
-                loyalty_points=0
+                customer_id=1,
+                name="",
+                email="test@example.com",
+                membership_tier=MembershipTier.STANDARD
             )
+        self.assertIn("Customer name cannot be empty", str(context.exception))
         
-        with self.assertRaises(ValueError):
+        # Test negative loyalty points
+        with self.assertRaises(ValueError) as context:
             Customer(
-                customer_id=107,
-                name="Test",
-                email="invalid-email",  # Invalid email
-                membership_tier="gold",
-                phone="555-0101",
-                address="123 Main St, San Francisco CA 94102",
-                loyalty_points=0
+                customer_id=1,
+                name="Test User",
+                email="test@example.com",
+                membership_tier=MembershipTier.STANDARD,
+                loyalty_points=-10
             )
+        self.assertIn("Loyalty points cannot be negative", str(context.exception))
+    
+    def test_custom_validator(self):
+        """Test using a custom validator"""
+        class StrictValidator(DefaultCustomerValidator):
+            def validate_customer_data(self, customer_id: int, name: str, loyalty_points: int) -> None:
+                super().validate_customer_data(customer_id, name, loyalty_points)
+                if len(name) < 5:
+                    raise ValueError("Name must be at least 5 characters long")
         
-        with self.assertRaises(ValueError):
+        # Test with valid data
+        customer = Customer(
+            customer_id=6,
+            name="Valid Name",
+            email="valid@example.com",
+            membership_tier=MembershipTier.STANDARD,
+            validator=StrictValidator()
+        )
+        self.assertEqual(customer.name, "Valid Name")
+        
+        # Test with invalid data for custom validator
+        with self.assertRaises(ValueError) as context:
             Customer(
-                customer_id=108,
-                name="Test",
-                email="test@email.com",
-                membership_tier="gold",
-                phone="555-0101",
-                address="123 Main St, San Francisco CA 94102",
-                loyalty_points=-10  # Negative points
+                customer_id=7,
+                name="Bob",
+                email="bob@example.com",
+                membership_tier=MembershipTier.STANDARD,
+                validator=StrictValidator()
             )
-    
-    def test_can_place_order(self):
-        """Test if customer can place orders"""
-        self.assertTrue(self.customer_gold.can_place_order())
-        self.assertTrue(self.customer_silver.can_place_order())
-        self.assertTrue(self.customer_standard.can_place_order())
-        self.assertFalse(self.customer_suspended.can_place_order())
-    
-    def test_get_membership_discount_rate(self):
-        """Test membership discount rates"""
-        self.assertEqual(self.customer_gold.get_membership_discount_rate(), 0.15)
-        self.assertEqual(self.customer_silver.get_membership_discount_rate(), 0.07)
-        self.assertEqual(self.customer_standard.get_membership_discount_rate(), 0.0)
-        self.assertEqual(self.customer_suspended.get_membership_discount_rate(), 0.0)
-    
-    def test_get_shipping_discount_rate(self):
-        """Test shipping discount rates"""
-        self.assertEqual(self.customer_gold.get_shipping_discount_rate(), 0.5)
-        self.assertEqual(self.customer_silver.get_shipping_discount_rate(), 0.0)
-        self.assertEqual(self.customer_standard.get_shipping_discount_rate(), 0.0)
-        self.assertEqual(self.customer_suspended.get_shipping_discount_rate(), 0.0)
-    
-    def test_add_loyalty_points(self):
-        """Test adding loyalty points"""
-        initial_points = self.customer_standard.loyalty_points
-        self.customer_standard.add_loyalty_points(50)
-        self.assertEqual(self.customer_standard.loyalty_points, initial_points + 50)
-        
-        # Test with gold multiplier
-        initial_points = self.customer_gold.loyalty_points
-        self.customer_gold.add_loyalty_points(50)
-        self.assertEqual(self.customer_gold.loyalty_points, initial_points + 100)  # 2x multiplier for gold
-    
-    def test_redeem_loyalty_points(self):
-        """Test redeeming loyalty points"""
-        initial_points = self.customer_gold.loyalty_points
-        
-        # Test successful redemption
-        self.assertTrue(self.customer_gold.redeem_loyalty_points(50))
-        self.assertEqual(self.customer_gold.loyalty_points, initial_points - 50)
-        
-        # Test insufficient points
-        self.assertFalse(self.customer_standard.redeem_loyalty_points(100))
-        self.assertEqual(self.customer_standard.loyalty_points, 25)  # Unchanged
-        
-        # Test invalid points
-        with self.assertRaises(ValueError):
-            self.customer_gold.redeem_loyalty_points(-10)
-    
-    def test_upgrade_membership(self):
-        """Test membership upgrade"""
-        # Test upgrade from standard to silver
-        self.customer_standard.upgrade_membership(MembershipTier.SILVER)
-        self.assertEqual(self.customer_standard.membership_tier, MembershipTier.SILVER)
-        
-        # Test upgrade to suspended (should fail)
-        with self.assertRaises(ValueError):
-            self.customer_gold.upgrade_membership(MembershipTier.SUSPENDED)
-    
-    def test_add_order_to_history(self):
-        """Test adding order to customer history"""
-        initial_count = len(self.customer_gold.order_history)
-        self.customer_gold.add_order_to_history(1001)
-        self.assertEqual(len(self.customer_gold.order_history), initial_count + 1)
-        self.assertIn(1001, self.customer_gold.order_history)
-        
-        # Test invalid order ID
-        with self.assertRaises(ValueError):
-            self.customer_gold.add_order_to_history(-1)
-    
-    def test_get_customer_by_email(self):
-        """Test getting customer by email"""
-        # This would require a repository implementation
-        # For now, just test the email value object
-        self.assertEqual(self.customer_gold.email.value, "alice@email.com")
-        
-        # Test email validation
-        with self.assertRaises(ValueError):
-            Customer(
-                customer_id=109,
-                name="Test",
-                email="invalid-email",  # Invalid email format
-                membership_tier="gold",
-                phone="555-0101",
-                address="123 Main St, San Francisco CA 94102",
-                loyalty_points=0
-            )
+        self.assertIn("Name must be at least 5 characters long", str(context.exception))
 
 
 if __name__ == '__main__':

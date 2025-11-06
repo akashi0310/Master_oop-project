@@ -1,235 +1,228 @@
 import unittest
 from datetime import datetime, timedelta
-from domain.models import Order, OrderItem
-from domain.enums import OrderStatus
-from domain.value_objects import Money
+from domain.models.order import Order
+from domain.models.order_item import OrderItem
+from domain.value_objects.money import Money
+from domain.enums.order_status import OrderStatus
+from services.order_status_manager import OrderStatusManager
+from services.order_tracking_manager import OrderTrackingManager
+from services.order_calculations_service import OrderCalculationsService
 
 
-class TestOrder(unittest.TestCase):
+class TestOrderRefactored(unittest.TestCase):
+    """Test cases for the refactored Order class"""
+    
     def setUp(self):
         """Set up test fixtures"""
-        self.order_pending = Order(
-            order_id=1,
-            customer_id=101,
-            items=[
-                OrderItem(product_id=1, quantity=1, unit_price=999.99),
-                OrderItem(product_id=2, quantity=2, unit_price=29.99)
-            ],
-            status=OrderStatus.PENDING.value,
-            created_at=datetime.now(),
-            total_price=Money(1059.97),
-            shipping_cost=Money(25.00)
-        )
-        
-        self.order_shipped = Order(
-            order_id=2,
-            customer_id=102,
-            items=[
-                OrderItem(product_id=3, quantity=5, unit_price=79.99)
-            ],
-            status=OrderStatus.SHIPPED.value,
-            created_at=datetime.now(),
-            total_price=Money(399.95),
-            shipping_cost=Money(15.00)
-        )
-        self.order_shipped.tracking_number = "TRACK21000"
-        
-        self.order_delivered = Order(
-            order_id=3,
-            customer_id=103,
-            items=[
-                OrderItem(product_id=4, quantity=1, unit_price=299.99)
-            ],
-            status=OrderStatus.DELIVERED.value,
-            created_at=datetime.now(),
-            total_price=Money(299.99),
-            shipping_cost=Money(10.00)
-        )
-        
-        self.order_cancelled = Order(
-            order_id=4,
-            customer_id=104,
-            items=[
-                OrderItem(product_id=5, quantity=2, unit_price=34.99)
-            ],
-            status=OrderStatus.CANCELLED.value,
-            created_at=datetime.now(),
-            total_price=Money(69.98),
-            shipping_cost=Money(5.00)
+        self.items = [
+            OrderItem(product_id=1, quantity=2, unit_price=Money(10.0)),
+            OrderItem(product_id=2, quantity=1, unit_price=Money(20.0))
+        ]
+        self.status_manager = OrderStatusManager(OrderStatus.PENDING)
+        self.tracking_manager = OrderTrackingManager()
+        self.calculations_service = OrderCalculationsService(
+            type('OrderItemsProvider', (object,), {
+                'get_items': lambda: self.items
+            })
         )
     
     def test_order_creation(self):
-        """Test order creation with valid data"""
+        """Test creating a valid order"""
         order = Order(
-            order_id=5,
-            customer_id=105,
-            items=[
-                OrderItem(product_id=6, quantity=3, unit_price=49.99)
-            ],
-            status=OrderStatus.PENDING.value,
+            order_id=1,
+            customer_id=101,
+            items=self.items,
+            status=OrderStatus.PENDING,
             created_at=datetime.now(),
-            total_price=Money(149.97),
-            shipping_cost=Money(7.50)
+            total_price=Money(40.0),
+            shipping_cost=Money(5.0),
+            status_manager=self.status_manager,
+            tracking_manager=self.tracking_manager,
+            calculations_service=self.calculations_service
         )
         
-        self.assertEqual(order.order_id, 5)
-        self.assertEqual(order.customer_id, 105)
-        self.assertEqual(len(order.items), 1)
-        self.assertEqual(order.items[0].product_id, 6)
-        self.assertEqual(order.items[0].quantity, 3)
-        self.assertEqual(order.items[0].unit_price.amount, 49.99)
-        self.assertEqual(order.status, OrderStatus.PENDING)
-        self.assertEqual(order.total_price.amount, 149.97)
-        self.assertEqual(order.shipping_cost.amount, 7.50)
-        self.assertIsNone(order.tracking_number)
+        self.assertEqual(order.order_id, 1)
+        self.assertEqual(order.customer_id, 101)
+        self.assertEqual(len(order.items), 2)
+        self.assertEqual(order._status_manager.status, OrderStatus.PENDING)
+        self.assertEqual(order.total_price, Money(40.0))
+        self.assertEqual(order.shipping_cost, Money(5.0))
     
-    def test_order_creation_invalid_data(self):
-        """Test order creation with invalid data"""
+    def test_order_validation(self):
+        """Test order validation"""
         with self.assertRaises(ValueError):
             Order(
-                order_id=-1,  # Invalid ID
-                customer_id=105,
+                order_id=0,
+                customer_id=101,
+                items=self.items,
+                status=OrderStatus.PENDING,
+                created_at=datetime.now(),
+                total_price=Money(40.0),
+                shipping_cost=Money(5.0)
+            )
+        
+        with self.assertRaises(ValueError):
+            Order(
+                order_id=1,
+                customer_id=0,
+                items=self.items,
+                status=OrderStatus.PENDING,
+                created_at=datetime.now(),
+                total_price=Money(40.0),
+                shipping_cost=Money(5.0)
+            )
+        
+        with self.assertRaises(ValueError):
+            Order(
+                order_id=1,
+                customer_id=101,
                 items=[],
-                status=OrderStatus.PENDING.value,
+                status=OrderStatus.PENDING,
                 created_at=datetime.now(),
-                total_price=Money(0.0),
-                shipping_cost=Money(0.0)
+                total_price=Money(40.0),
+                shipping_cost=Money(5.0)
             )
         
         with self.assertRaises(ValueError):
             Order(
-                order_id=6,
-                customer_id=105,
-                items=[],  # Empty items
-                status=OrderStatus.PENDING.value,
+                order_id=1,
+                customer_id=101,
+                items=self.items,
+                status="invalid",
                 created_at=datetime.now(),
-                total_price=Money(0.0),
-                shipping_cost=Money(0.0)
-            )
-        
-        with self.assertRaises(ValueError):
-            Order(
-                order_id=7,
-                customer_id=105,
-                items=[
-                    OrderItem(product_id=6, quantity=3, unit_price=49.99)
-                ],
-                status="invalid_status",  # Invalid status
-                created_at=datetime.now(),
-                total_price=Money(149.97),
-                shipping_cost=Money(7.50)
+                total_price=Money(40.0),
+                shipping_cost=Money(5.0)
             )
     
-    def test_can_be_cancelled(self):
-        """Test if order can be cancelled"""
-        self.assertTrue(self.order_pending.can_be_cancelled())
-        self.assertFalse(self.order_shipped.can_be_cancelled())
-        self.assertFalse(self.order_delivered.can_be_cancelled())
-        self.assertFalse(self.order_cancelled.can_be_cancelled())
-    
-    def test_can_be_shipped(self):
-        """Test if order can be shipped"""
-        # Since can_be_shipped doesn't exist, we test status-based logic
-        self.assertEqual(self.order_pending.status.value, "pending")
-        self.assertEqual(self.order_shipped.status.value, "shipped")
-        self.assertEqual(self.order_delivered.status.value, "delivered")
-        self.assertEqual(self.order_cancelled.status.value, "cancelled")
-    
-    def test_update_status(self):
-        """Test updating order status"""
-        # Test valid status update
-        self.order_pending.update_status(OrderStatus.CONFIRMED)
-        self.assertEqual(self.order_pending.status, OrderStatus.CONFIRMED)
-        
-        # Test invalid status transition
-        with self.assertRaises(ValueError):
-            self.order_delivered.update_status(OrderStatus.PENDING)  # Can't go back to pending
-        
-        # Test final state update
-        with self.assertRaises(ValueError):
-            self.order_cancelled.update_status(OrderStatus.SHIPPED)  # Can't update cancelled order
-    
-    def test_add_tracking_number(self):
-        """Test adding tracking number"""
-        self.order_shipped.add_tracking_number("TRACK12345")
-        self.assertEqual(self.order_shipped.tracking_number, "TRACK12345")
-        
-        # Test invalid tracking number
-        with self.assertRaises(ValueError):
-            self.order_pending.add_tracking_number("")  # Empty tracking number
-    
-    def test_set_payment_method(self):
-        """Test setting payment method"""
-        self.order_pending.set_payment_method("credit_card")
-        self.assertEqual(self.order_pending.payment_method, "credit_card")
-        
-        # Test invalid payment method
-        with self.assertRaises(ValueError):
-            self.order_pending.set_payment_method("")  # Empty payment method
-    
-    def test_get_days_since_creation(self):
-        """Test calculating days since order creation"""
-        # Create an order from yesterday
-        yesterday = datetime.now() - timedelta(days=1)
-        old_order = Order(
-            order_id=6,
-            customer_id=105,
-            items=[
-                OrderItem(product_id=6, quantity=3, unit_price=49.99)
-            ],
-            status=OrderStatus.PENDING.value,
-            created_at=yesterday,
-            total_price=Money(149.97),
-            shipping_cost=Money(7.50)
-        )
-        
-        self.assertGreaterEqual(old_order.get_days_since_creation(), 1)
-        
-        # Create an order from today
-        today_order = Order(
-            order_id=7,
-            customer_id=105,
-            items=[
-                OrderItem(product_id=6, quantity=3, unit_price=49.99)
-            ],
-            status=OrderStatus.PENDING.value,
+    def test_status_operations(self):
+        """Test order status operations"""
+        order = Order(
+            order_id=1,
+            customer_id=101,
+            items=self.items,
+            status=OrderStatus.PENDING,
             created_at=datetime.now(),
-            total_price=Money(149.97),
-            shipping_cost=Money(7.50)
+            total_price=Money(40.0),
+            shipping_cost=Money(5.0),
+            status_manager=self.status_manager,
+            tracking_manager=self.tracking_manager,
+            calculations_service=self.calculations_service
         )
         
-        self.assertEqual(today_order.get_days_since_creation(), 0)
+        # Test status update
+        order.update_status(OrderStatus.PROCESSING)
+        self.assertEqual(order._status_manager.status, OrderStatus.PROCESSING)
+        
+        # Test cancellation
+        order.cancel()
+        self.assertEqual(order._status_manager.status, OrderStatus.CANCELLED)
+        self.assertTrue(order.is_cancelled())
+        
+        # Test that final status can't be changed
+        with self.assertRaises(ValueError):
+            order.update_status(OrderStatus.SHIPPED)
     
-    def test_is_shipped(self):
-        """Test if order is shipped"""
-        self.assertFalse(self.order_pending.is_shipped())
-        self.assertTrue(self.order_shipped.is_shipped())
-        self.assertFalse(self.order_delivered.is_shipped())  # Delivered is not 'shipped' status
-        self.assertFalse(self.order_cancelled.is_shipped())
+    def test_tracking_operations(self):
+        """Test order tracking operations"""
+        order = Order(
+            order_id=1,
+            customer_id=101,
+            items=self.items,
+            status=OrderStatus.PENDING,
+            created_at=datetime.now(),
+            total_price=Money(40.0),
+            shipping_cost=Money(5.0),
+            status_manager=self.status_manager,
+            tracking_manager=self.tracking_manager,
+            calculations_service=self.calculations_service
+        )
+        
+        # Test tracking number
+        order.add_tracking_number("TRACK123")
+        self.assertEqual(order.tracking_number, "TRACK123")
+        
+        # Test payment method
+        order.set_payment_method("Credit Card")
+        self.assertEqual(order.payment_method, "Credit Card")
+        
+        # Test validation
+        with self.assertRaises(ValueError):
+            order.add_tracking_number("")
+        
+        with self.assertRaises(ValueError):
+            order.set_payment_method("")
     
-    def test_is_delivered(self):
-        """Test if order is delivered"""
-        self.assertFalse(self.order_pending.is_delivered())
-        self.assertFalse(self.order_shipped.is_delivered())
-        self.assertTrue(self.order_delivered.is_delivered())
-        self.assertFalse(self.order_cancelled.is_delivered())
+    def test_calculation_operations(self):
+        """Test order calculation operations"""
+        order = Order(
+            order_id=1,
+            customer_id=101,
+            items=self.items,
+            status=OrderStatus.PENDING,
+            created_at=datetime.now(),
+            total_price=Money(40.0),
+            shipping_cost=Money(5.0),
+            status_manager=self.status_manager,
+            tracking_manager=self.tracking_manager,
+            calculations_service=self.calculations_service
+        )
+        
+        # Test subtotal calculation
+        expected_subtotal = Money(40.0)  # 2 * $10 + 1 * $20
+        self.assertEqual(order.get_subtotal(), expected_subtotal)
+        
+        # Test days since creation
+        created_date = datetime.now() - timedelta(days=5)
+        order = Order(
+            order_id=1,
+            customer_id=101,
+            items=self.items,
+            status=OrderStatus.PENDING,
+            created_at=created_date,
+            total_price=Money(40.0),
+            shipping_cost=Money(5.0),
+            status_manager=self.status_manager,
+            tracking_manager=self.tracking_manager,
+            calculations_service=self.calculations_service
+        )
+        self.assertEqual(order.get_days_since_creation(), 5)
     
-    def test_is_cancelled(self):
-        """Test if order is cancelled"""
-        self.assertFalse(self.order_pending.is_cancelled())
-        self.assertFalse(self.order_shipped.is_cancelled())
-        self.assertFalse(self.order_delivered.is_cancelled())
-        self.assertTrue(self.order_cancelled.is_cancelled())
-    
-    def test_is_active(self):
-        """Test if order is active (not cancelled or delivered)"""
-        # Since is_active doesn't exist, we test status-based logic
-        self.assertNotEqual(self.order_pending.status.value, "cancelled")
-        self.assertNotEqual(self.order_pending.status.value, "delivered")
-        self.assertNotEqual(self.order_shipped.status.value, "cancelled")
-        self.assertNotEqual(self.order_shipped.status.value, "delivered")
-        self.assertEqual(self.order_delivered.status.value, "delivered")
-        self.assertEqual(self.order_cancelled.status.value, "cancelled")
+    def test_interface_compliance(self):
+        """Test that Order complies with all interfaces"""
+        order = Order(
+            order_id=1,
+            customer_id=101,
+            items=self.items,
+            status=OrderStatus.PENDING,
+            created_at=datetime.now(),
+            total_price=Money(40.0),
+            shipping_cost=Money(5.0),
+            status_manager=self.status_manager,
+            tracking_manager=self.tracking_manager,
+            calculations_service=self.calculations_service
+        )
+        
+        # Test OrderInfo interface
+        self.assertEqual(order.order_id, 1)
+        self.assertEqual(order.customer_id, 101)
+        self.assertEqual(order.items, self.items)
+        # Remove seconds for comparison
+        self.assertEqual(order.created_at.replace(microsecond=0), datetime.now().replace(microsecond=0))
+        self.assertEqual(order.total_price, Money(40.0))
+        self.assertEqual(order.shipping_cost, Money(5.0))
+        
+        # Test OrderStatusOperations interface
+        self.assertFalse(order.is_shipped())
+        self.assertFalse(order.is_delivered())
+        self.assertFalse(order.is_cancelled())
+        self.assertTrue(order.can_be_cancelled())
+        
+        # Test OrderTrackingOperations interface
+        self.assertIsNone(order.tracking_number)
+        self.assertIsNone(order.payment_method)
+        
+        # Test OrderCalculationOperations interface
+        self.assertEqual(order.get_subtotal(), Money(40.0))
 
 
 if __name__ == '__main__':

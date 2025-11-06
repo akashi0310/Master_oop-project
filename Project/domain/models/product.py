@@ -1,8 +1,19 @@
-from typing import Union
+from typing import Union, Optional
 from ..value_objects.money import Money
+from ..interfaces.product_interfaces import ProductInfo, StockOperations, PricingOperations
+from services.product_validator import ProductValidator, DefaultProductValidator
 
 
-class Product:
+class Product(
+    ProductInfo,
+    StockOperations,
+    PricingOperations
+):
+    """
+    Product entity that follows SOLID principles by delegating
+    responsibilities to appropriate components.
+    """
+    
     def __init__(
         self,
         product_id: int,
@@ -11,21 +22,18 @@ class Product:
         quantity_available: int,
         category: str,
         weight: float,
-        supplier_id: int
+        supplier_id: int,
+        validator: Optional[ProductValidator] = None
     ):
-        if not name or not name.strip():
-            raise ValueError("Product name cannot be empty")
-        if product_id <= 0:
-            raise ValueError("Product ID must be positive")
-        if quantity_available < 0:
-            raise ValueError("Quantity available cannot be negative")
-        if weight <= 0:
-            raise ValueError("Weight must be positive")
-        if supplier_id <= 0:
-            raise ValueError("Supplier ID must be positive")
-        if not category or not category.strip():
-            raise ValueError("Category cannot be empty")
+        # Use dependency injection for validation
+        self._validator = validator or DefaultProductValidator()
         
+        # Validate product data
+        self._validator.validate_product_data(
+            product_id, name, quantity_available, weight, supplier_id, category
+        )
+        
+        # Set product attributes
         self.product_id = product_id
         self.name = name.strip()
         self.price = Money(price) if isinstance(price, (float, int)) else price
@@ -33,8 +41,15 @@ class Product:
         self.category = category.strip()
         self.weight = weight
         self.supplier_id = supplier_id
-        self.discount_eligible = True
-
+        self._discount_eligible = True
+    
+    # Properties for read-only access
+    @property
+    def discount_eligible(self) -> bool:
+        """Check if product is eligible for discounts"""
+        return self._discount_eligible
+    
+    # Stock operations
     def is_in_stock(self) -> bool:
         """Check if product is in stock"""
         return self.quantity_available > 0
@@ -59,17 +74,22 @@ class Product:
             raise ValueError("Quantity to increase must be positive")
         self.quantity_available += quantity
     
-    def update_price(self, new_price: Union[float, Money]) -> None:
-        """Update the product price"""
-        self.price = Money(new_price) if isinstance(new_price, (float, int)) else new_price
-    
     def is_low_stock(self, threshold: int = 10) -> bool:
         """Check if product is low in stock"""
         return self.quantity_available <= threshold
     
     def get_total_value(self) -> Money:
-        """Get total value of current stock"""
+        """Get the total value of current stock"""
         return self.price.multiply(self.quantity_available)
+    
+    # Pricing operations
+    def update_price(self, new_price: Union[float, Money]) -> None:
+        """Update the product price"""
+        self.price = Money(new_price) if isinstance(new_price, (float, int)) else new_price
+    
+    def set_discount_eligibility(self, eligible: bool) -> None:
+        """Set whether the product is eligible for discounts"""
+        self._discount_eligible = eligible
     
     def __repr__(self) -> str:
         return f"<Product {self.name} ({self.price})>"
